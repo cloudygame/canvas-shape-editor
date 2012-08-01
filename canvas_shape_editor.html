@@ -1,0 +1,422 @@
+<!DOCTYPE HTML>
+<html>
+	<head>
+		<style>
+			body {
+				margin: 0px;
+				padding: 0px;
+			}
+			canvas {
+				border: 1px solid #9C9898;
+			}
+		</style>
+		<script type="text/javascript" src="js/lib/kinetic-v3.10.0.js"></script>
+		<script type="text/javascript" src="js/lib/jquery-1.7.2.min.js"></script>
+		<script>
+      var cntAnchors = 0;
+      var idSelectedAnchor = -1;
+      var X_SCREEN = 960;
+      var Y_SCREEN = 480;
+      var X_NEXT = 50;
+      var Y_NEXT = 50;
+      // Possible values:
+      // 0: go right and down
+      // 1: go right and up
+      // 2: go left and up
+      // 3: go left and down
+      dirAddPoint = 0;
+
+			function updateDottedLines(layer) {
+				var q = layer.quad;
+
+				var quadLine = layer.get('#quadLine')[0];
+
+				var quadPoints = [];
+        for (anchor in q) {
+          quadPoints.push(q[anchor].attrs.x);
+          quadPoints.push(q[anchor].attrs.y);
+        }
+
+        quadLine.setPoints(quadPoints);
+			}
+
+      function showDottedLines(layer) {
+        var quadLine = layer.get('#quadLine')[0];
+        quadLine.show();
+      }
+
+      function hideDottedLines(layer) {
+        var quadLine = layer.get('#quadLine')[0];
+        quadLine.hide();
+      }
+
+      function showAnchors(layer) {
+        var q = layer.quad;
+        for (anchor in q) {
+          q[anchor].show();
+        }
+      }
+
+      function hideAnchors(layer) {
+        var q = layer.quad;
+        for (anchor in q) {
+          q[anchor].hide();
+        }
+      }
+
+			function buildAnchor(layer, x, y, idAnchor) {
+				var anchor = new Kinetic.Circle({
+					x: x,
+					y: y,
+					radius: 8,
+					stroke: "#666",
+					fill: "#ddd",
+					strokeWidth: 2,
+					draggable: true,
+          visible: false, 
+          id: idAnchor
+				});
+
+				// add hover styling
+				anchor.on("mouseover", function() {
+					document.body.style.cursor = "pointer";
+					this.setStrokeWidth(4);
+          idSelectedAnchor = this.getId();
+					layer.draw();
+				});
+				anchor.on("mouseout", function() {
+					document.body.style.cursor = "default";
+					this.setStrokeWidth(2);
+          idSelectedAnchor = -1;
+					layer.draw();
+				});
+
+				layer.add(anchor);
+				return anchor;
+			}
+
+			function drawCurves() {
+				var context = this.getContext();
+				var layer = this.getLayer();
+
+				///////////////////////////////
+				// draw quad
+				///////////////////////////////
+				var quad = layer.quad;
+
+				// draw quad
+				context.beginPath();
+        var ctrlX = 0;
+        var ctrlY = 0;
+        var endX = 0;
+        var endY = 0;
+        for (anchor in quad) {
+          if (anchor == 0) {
+            context.moveTo(quad[anchor].attrs.x, quad[anchor].attrs.y);
+          } else if ((anchor % 2) == 0) {
+            endX = quad[anchor].attrs.x;
+            endY = quad[anchor].attrs.y;
+            if (idSelectedAnchor > -1 && idSelectedAnchor == anchor) {
+              context.strokeStyle = "red";
+              context.stroke();
+              // context.closePath();
+              // context.beginPath();
+            } else {
+              context.strokeStyle = "blue";
+              context.stroke();
+            }
+            context.quadraticCurveTo(ctrlX, ctrlY, endX, endY);
+          } else {
+            if (idSelectedAnchor > -1 && idSelectedAnchor == anchor) {
+              context.strokeStyle = "red";
+              context.stroke();
+              // context.closePath();
+              // context.beginPath();
+            } else {
+              context.strokeStyle = "blue";
+              context.stroke();
+            }
+            ctrlX = quad[anchor].attrs.x;
+            ctrlY = quad[anchor].attrs.y;
+          }
+        }
+				context.strokeStyle = "blue";
+				context.lineWidth = 4;
+				context.stroke();
+			}
+
+      function getNextCoords(xLast, yLast) {
+        var xNext, yNext, xRefNext, yRefNext = -1;
+        // First, go for the new direction in case the next coords would be outside of canvas
+        switch (dirAddPoint) {
+          case 0:
+            // Right and down
+            if (xLast + X_NEXT > X_SCREEN) {
+              if (yLast + Y_NEXT > Y_SCREEN) {
+                dirAddPoint = 2;
+              } else {
+                dirAddPoint = 3;
+              }
+            } else {
+              if (yLast + Y_NEXT > Y_SCREEN) {
+                dirAddPoint = 1;
+              } else {
+                // Direction remains the same
+              }
+            }
+            break;
+          case 1:
+            // Right and up
+            if (xLast + X_NEXT > X_SCREEN) {
+              if (yLast - Y_NEXT < 0) {
+                dirAddPoint = 3;
+              } else {
+                dirAddPoint = 2;
+              }
+            } else {
+              if (yLast - Y_NEXT < 0) {
+                dirAddPoint = 0;
+              } else {
+                // Direction remains the same
+              }
+            }
+            break;
+          case 2:
+            // Left and up
+            if (xLast - X_NEXT < 0) {
+              if (yLast - Y_NEXT < 0) {
+                dirAddPoint = 0;
+              } else {
+                dirAddPoint = 1;
+              }
+            } else {
+              if (yLast - Y_NEXT < 0) {
+                dirAddPoint = 3;
+              } else {
+                // Direction remains the same
+              }
+            }
+            break;
+          case 3:
+            // Left and down
+            if (xLast - X_NEXT < 0) {
+              if (yLast + Y_NEXT > Y_SCREEN) {
+                dirAddPoint = 1;
+              } else {
+                dirAddPoint = 0;
+              }
+            } else {
+              if (yLast + Y_NEXT > Y_SCREEN) {
+                dirAddPoint = 2;
+              } else {
+                // Direction remains the same
+              }
+            }
+            break;
+        }
+        // Second, the new coords are calculated
+        switch (dirAddPoint) {
+          case 0:
+            // Right and down
+            xNext = xLast + X_NEXT;
+            yNext = yLast + Y_NEXT;
+            xRefNext = xLast + X_NEXT;
+            yRefNext =  yLast;
+            break;
+          case 1:
+            // Right and up
+            xNext = xLast + X_NEXT;
+            yNext = yLast - Y_NEXT;
+            xRefNext = xLast + X_NEXT;
+            yRefNext =  yLast;
+            break;
+          case 2:
+            // Left and up
+            xNext = xLast - X_NEXT;
+            yNext = yLast - Y_NEXT;
+            xRefNext = xLast - X_NEXT;
+            yRefNext =  yLast;
+            break;
+          case 3:
+            // Left and down
+            xNext = xLast - X_NEXT;
+            yNext = yLast + Y_NEXT;
+            xRefNext = xLast - X_NEXT;
+            yRefNext =  yLast;
+            break;
+        }
+        console.log('returns [xNext=' + xNext + ', yNext=' + yNext + ', xRefNext=' + xRefNext + ', yRefNext=' + yRefNext + ']');
+        return [xNext, yNext, xRefNext, yRefNext];
+      }
+
+			window.onload = function() {
+				var stage = new Kinetic.Stage({
+					container: "container",
+					width: X_SCREEN,
+					height: Y_SCREEN
+				});
+
+				var layer = new Kinetic.Layer({
+					drawFunc: drawCurves
+				});
+
+				var quadLine = new Kinetic.Line({
+					dashArray: [10, 10, 0, 10],
+					strokeWidth: 3,
+					stroke: "black",
+					lineCap: "round",
+					id: "quadLine",
+					alpha: 0.3, 
+          visible: false
+				});
+
+				// add dotted line connectors
+				layer.add(quadLine);
+
+				/*
+				 * update the dotted line points before
+				 * drawing the layer
+				 */
+				layer.beforeDraw(function() {
+					updateDottedLines(layer);
+				});
+				/*
+				 * add custom property curve objects to layer so that
+				 * they can be modified by reference
+				 */
+				layer.quad = [
+          buildAnchor(layer, 50, 50, cntAnchors++),
+				  buildAnchor(layer, 100, 50, cntAnchors++),
+				  buildAnchor(layer, 100, 100, cntAnchors++)
+        ];
+
+				stage.on("mouseout", function() {
+					layer.draw();
+				});
+
+        $('#container').mouseout( function() {
+          hideDottedLines(layer);
+          hideAnchors(layer);
+          layer.draw();
+        });
+
+        $('#container').mouseover( function() {
+          showDottedLines(layer);
+          showAnchors(layer);
+          layer.draw();
+        });
+
+				stage.add(layer);
+
+        $('#addPoint').click( function() {
+          var xLast = layer.quad[layer.quad.length - 1].attrs.x;
+          var yLast = layer.quad[layer.quad.length - 1].attrs.y;
+          var nextCoords = getNextCoords(xLast, yLast);
+          var xNext = nextCoords[0];
+          var yNext = nextCoords[1];
+          var xRefNext = nextCoords[2];
+          var yRefNext = nextCoords[3];
+          layer.quad.push(buildAnchor(layer, xRefNext, yRefNext, cntAnchors++));
+          layer.quad.push(buildAnchor(layer, xNext, yNext, cntAnchors++));
+          layer.draw();
+        });
+
+        $('#removePoint').click( function() {
+          layer.remove(layer.quad.pop());
+          cntAnchors--;
+          layer.remove(layer.quad.pop());
+          cntAnchors--;
+          layer.draw();
+        });
+
+        $('#saveCurve').click( function() {
+          var strCoords = "{\"fillColor\":\"blue\",\"alpha\":\"0.5\",\"strokeStyle\":6,";
+          for (anchor in layer.quad) {
+            if (anchor == 0) {
+              strCoords += "\"moveTo\":";
+            } else if (anchor == 1) {
+              strCoords += ",\"quadraticCurveTo\":[";
+            }
+            if (anchor % 2 == 0) {
+              if (anchor == 0) {
+                strCoords += "{";
+              }
+              strCoords += "\"x\":" + layer.quad[anchor].attrs.x + ",\"y\":" + layer.quad[anchor].attrs.y + "}";
+            } else {
+              if (anchor > 1) {
+                strCoords += ",";
+              }
+              strCoords += "{\"ref_x\":" + layer.quad[anchor].attrs.x + ",\"ref_y\":" + layer.quad[anchor].attrs.y + ",";
+            }
+            
+            if (anchor == layer.quad.length - 1) {
+              strCoords += "]}";
+            }
+          }
+          $('#curvePoints').val(strCoords);
+        });
+
+        $('#loadCurve').click( function() {
+          var jsonStr = $('#curvePoints').val();
+          if (jsonStr == '') {
+            console.log('There are no curve points defined. Cannot load.');
+            return;
+          }
+          console.log('jsonStr: ' + jsonStr);
+          try {
+            var cloudData = jQuery.parseJSON(jsonStr);
+          } catch (se) {
+            // pass
+            console.log('The curve points defined are syntactically not correct. Cannot load.');
+            return;
+          }
+          if (cloudData == null || !("moveTo" in cloudData) || !("quadraticCurveTo" in cloudData)) {
+            console.log('The curve points defined are semantically not correct. Cannot load.');
+            return;
+          }
+
+          // Remove old points first from canvas
+          lenQuad = layer.quad.length;
+          for (ixQuad = 0; ixQuad < lenQuad; ixQuad++) {
+            layer.remove(layer.quad.pop());
+            cntAnchors--;
+          }
+
+          // Then, add new points to canvas
+          var cntPoints = cloudData["quadraticCurveTo"].length * 2 + 1;
+          layer.quad.push(buildAnchor(layer, cloudData["moveTo"]["x"], cloudData["moveTo"]["y"], cntAnchors++));
+          for (var keyCoords in cloudData["quadraticCurveTo"]) {
+            var valCoords = cloudData["quadraticCurveTo"][keyCoords];
+            var xNext = valCoords["x"];
+            var yNext = valCoords["y"];
+            var xRefNext = valCoords["ref_x"];
+            var yRefNext = valCoords["ref_y"];
+            layer.quad.push(buildAnchor(layer, xRefNext, yRefNext, cntAnchors++));
+            layer.quad.push(buildAnchor(layer, xNext, yNext, cntAnchors++));
+          }
+
+          // Redraw layer
+          layer.draw();
+        });
+			};
+
+		$(document).ready( function(){
+			// set the size of the textarea depending on screen width
+			var taWidth	= $(window).width() - 960 - 40;
+			$('#curvePoints').css( 'width', taWidth );
+		})
+		</script>
+	</head>
+
+	<body>
+		<div id="container" style="position: absolute;"></div>
+		<div id="controls" style="position: fixed; bottom: 2px;">
+			<input type="button" id="addPoint" value="Add point"/>
+			<input type="button" id="removePoint" value="Remove point"/>
+			<input type="button" id="saveCurve" value="Save curve"/>
+      <input type="button" id="loadCurve" value="Load curve"/>
+		</div>
+		<textarea id="curvePoints" style="width: 200px; height: 300px; position: fixed; right: 5px;"></textarea>
+	</body>
+
+</html>
